@@ -1,0 +1,59 @@
+{
+  "templates": {
+    "standard": {
+      "name": "표준 발주서",
+      "file": "porder_template.xlsx",
+      "description": "일반적인 발주서 양식",
+      "fields": [
+        { "key": "발주번호", "required": false, "type": "text" },
+        { "key": "발주일자", "required": false, "type": "date" },
+        { "key": "품목명", "required": true, "type": "text", "mapping": ["상품명", "품목명", "제품명"] },
+        { "key": "주문수량", "required": true, "type": "number", "mapping": ["수량", "주문수량"] },
+        { "key": "단가", "required": true, "type": "currency", "mapping": ["단가", "가격"] },
+        { "key": "공급가액", "required": false, "type": "currency", "calculated": "주문수량 * 단가" },
+        { "key": "받는 분", "required": true, "type": "text", "mapping": ["고객명", "주문자", "받는분"] },
+        { "key": "전화번호", "required": false, "type": "phone", "mapping": ["연락처", "전화번호", "휴대전화"] },
+        { "key": "우편번호", "required": false, "type": "text", "mapping": ["우편번호"] },
+        { "key": "배송지", "required": false, "type": "text", "mapping": ["주소", "배송지", "배송주소"] }
+      ]
+    },
+    "post_office": {
+      "name": "우체국 배송용",
+      "file": "post_office_template.xlsx",
+      "description": "우체국 택배 전용 양식",
+      "fields": [
+        { "key": "받는 분", "required": true, "type": "text", "mapping": ["고객명", "주문자", "받는분"] },
+        { "key": "우편번호", "required": true, "type": "text", "mapping": ["우편번호"] },
+        { "key": "주소(시도+시군구+도로명+건물번호)", "required": true, "type": "text", "mapping": ["주소", "배송지"] },
+        { "key": "상세주소(동, 호수, 洞명칭, 아파트, 건물명 등)", "required": false, "type": "text", "mapping": ["상세주소"] },
+        { "key": "일반전화(02-1234-5678)", "required": false, "type": "phone", "mapping": ["일반전화", "전화번호"] },
+        { "key": "휴대전화(010-1234-5678)", "required": true, "type": "phone", "mapping": ["휴대전화", "연락처", "핸드폰"] },
+        { "key": "중량(kg)", "required": true, "type": "number", "mapping": ["중량", "무게"], "default": 1 },
+        { "key": "부피(cm)=가로+세로+높이", "required": true, "type": "number", "mapping": ["부피", "크기"], "default": 50 },
+        { "key": "내용품코드", "required": true, "type": "text", "mapping": ["내용품코드"], "default": "농/수/축산물(일반)" },
+        { "key": "내용물", "required": false, "type": "text", "mapping": ["내용물", "상품명"] },
+        { "key": "배달방식", "required": false, "type": "text", "mapping": ["배달방식"], "default": "일반택배" },
+        { "key": "배송시요청사항", "required": false, "type": "text", "mapping": ["배송요청사항", "요청사항"] },
+        { "key": "분할접수 여부(Y/N)", "required": false, "type": "text", "mapping": ["분할접수"], "default": "N" },
+        { "key": "분할접수 첫번째 중량(kg)", "required": false, "type": "number", "mapping": ["첫번째중량"] },
+        { "key": "분할접수 첫번째 부피(cm)", "required": false, "type": "number", "mapping": ["첫번째부피"] },
+        { "key": "분할접수 두번째 중량(kg)", "required": false, "type": "number", "mapping": ["두번째중량"] },
+        { "key": "분할접수 두번째 부피(cm)", "required": false, "type": "number", "mapping": ["두번째부피"] }
+      ]
+    },
+    "iporter": {
+      "name": "아이포터 발주서",
+      "file": "iporter_template.xlsx", 
+      "description": "아이포터 업체 전용 양식",
+      "fields": [
+        { "key": "품목명", "required": true, "type": "text", "mapping": ["상품명", "품목명"] },
+        { "key": "주문수량", "required": true, "type": "number", "mapping": ["수량", "주문수량"] },
+        { "key": "단가", "required": true, "type": "currency", "mapping": ["단가", "가격"] },
+        { "key": "금액", "required": false, "type": "currency", "calculated": "주문수량 * 단가" },
+        { "key": "고객명", "required": true, "type": "text", "mapping": ["고객명", "주문자"] },
+        { "key": "연락처", "required": true, "type": "phone", "mapping": ["연락처", "전화번호"] },
+        { "key": "배송주소", "required": true, "type": "text", "mapping": ["주소", "배송지"] }
+      ]
+    }
+  }
+} 

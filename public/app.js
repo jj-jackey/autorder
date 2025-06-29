@@ -49,6 +49,8 @@ function initializeApp() {
     });
 }
 
+
+
 // 드래그 오버 처리
 function handleDragOver(e) {
     e.preventDefault();
@@ -198,6 +200,9 @@ function setupMapping(sourceHeaders) {
         sourceFieldsContainer.appendChild(fieldDiv);
     });
     
+    // 표준 타겟 필드 설정
+    setupStandardTargetFields();
+    
     // 타겟 필드 초기화 (이전 매핑 상태 제거)
     resetTargetFields();
     
@@ -302,6 +307,14 @@ async function saveMapping() {
         return;
     }
     
+    // 필수 필드 검증
+    const validation = validateRequiredFields(currentMapping);
+    if (!validation.isValid) {
+        // 필수 필드가 누락되었을 때 입력 폼 표시
+        showMissingFieldsForm(validation.missingFields);
+        return;
+    }
+    
     try {
         const mappingData = {
             mappingName: `mapping_${Date.now()}`,
@@ -319,7 +332,7 @@ async function saveMapping() {
         const result = await response.json();
         
         if (result.success) {
-            showAlert('success', '매핑 규칙이 저장되었습니다.');
+            showAlert('success', '✅ 매핑 규칙이 저장되었습니다. 모든 필수 필드가 올바르게 매핑되었습니다.');
             
             // 매핑 저장 상태 표시
             sessionStorage.setItem('mappingSaved', 'true');
@@ -672,10 +685,21 @@ function simulateProgress(steps, totalDuration = 3000) {
 
 // 모든 단계 초기화
 function resetAllSteps() {
+    // 전역 변수 초기화 (중요!)
+    currentFileId = null;
+    currentMapping = {};
+    generatedFileName = null;
+    
     // STEP 2, 3, 4 숨기기
     document.getElementById('step2').classList.add('hidden');
     document.getElementById('step3').classList.add('hidden');
     document.getElementById('step4').classList.add('hidden');
+    
+    // 직접 입력 폼 숨기기
+    const directInputStep = document.getElementById('directInputStep');
+    if (directInputStep) {
+        directInputStep.classList.add('hidden');
+    }
     
     // 업로드 결과 초기화
     const uploadResult = document.getElementById('uploadResult');
@@ -695,8 +719,23 @@ function resetAllSteps() {
         emailResult.innerHTML = '';
     }
     
+    // 필수 필드 입력 폼 숨기기
+    const missingFieldsForm = document.getElementById('missingFieldsForm');
+    if (missingFieldsForm) {
+        missingFieldsForm.classList.add('hidden');
+    }
+    
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    
     // 매핑 상태 초기화
     sessionStorage.setItem('mappingSaved', 'false');
+    
+    // 타겟 필드 초기화
+    resetTargetFields();
     
     // GENERATE ORDER 버튼 비활성화
     setTimeout(() => {
@@ -863,4 +902,339 @@ async function clearAllHistory() {
         console.error('이력 삭제 오류:', error);
         showAlert('error', '이력 삭제 중 오류가 발생했습니다.');
     }
+}
+
+// 🎯 표준 타겟 필드 설정
+function setupStandardTargetFields() {
+    const targetFieldsContainer = document.getElementById('targetFields');
+    targetFieldsContainer.innerHTML = '';
+    
+    // 표준 발주서 필수 필드 정의 (상품명, 연락처, 주소만 필수)
+    const standardFields = [
+        { name: '상품명', required: true },
+        { name: '수량', required: false },
+        { name: '단가', required: false },
+        { name: '고객명', required: false },
+        { name: '연락처', required: true },
+        { name: '주소', required: true }
+    ];
+    
+    standardFields.forEach(field => {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'field-item';
+        fieldDiv.dataset.target = field.name;
+        fieldDiv.dataset.required = field.required ? 'true' : 'false';
+        
+        if (field.required) {
+            fieldDiv.innerHTML = `${field.name} <span style="color: red;">*</span>`;
+        } else {
+            fieldDiv.textContent = field.name;
+        }
+        
+        fieldDiv.onclick = () => selectTargetField(fieldDiv);
+        targetFieldsContainer.appendChild(fieldDiv);
+    });
+    
+    // 타겟 필드 초기화 (이전 매핑 상태 제거)
+    resetTargetFields();
+}
+
+// 📊 필수 필드 검증 강화
+function validateRequiredFields(mapping) {
+    const requiredFields = ['상품명', '연락처', '주소'];
+    const missingFields = [];
+    
+    requiredFields.forEach(field => {
+        if (!mapping[field] || mapping[field].trim() === '') {
+            missingFields.push(field);
+        }
+    });
+    
+    return {
+        isValid: missingFields.length === 0,
+        missingFields: missingFields,
+        message: missingFields.length > 0 ? 
+            `필수 필드가 매핑되지 않았습니다: ${missingFields.join(', ')}` : 
+            '모든 필수 필드가 매핑되었습니다.'
+    };
+}
+
+// 🔄 필수 필드 입력 폼 표시
+function showMissingFieldsForm(missingFields) {
+    const form = document.getElementById('missingFieldsForm');
+    const container = document.getElementById('missingFieldsContainer');
+    
+    // 기존 내용 초기화
+    container.innerHTML = '';
+    
+    // 각 누락된 필드에 대해 입력 필드 생성
+    missingFields.forEach(field => {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'form-group';
+        fieldDiv.style.marginBottom = '15px';
+        
+        const label = document.createElement('label');
+        label.textContent = field;
+        label.style.fontWeight = '600';
+        label.style.color = '#856404';
+        label.style.marginBottom = '5px';
+        label.style.display = 'block';
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control';
+        input.id = `missing_${field}`;
+        input.placeholder = `${field}를 입력하세요`;
+        input.style.width = '100%';
+        input.style.padding = '8px 12px';
+        input.style.border = '1px solid #dee2e6';
+        input.style.borderRadius = '4px';
+        input.style.fontSize = '0.9em';
+        
+        fieldDiv.appendChild(label);
+        fieldDiv.appendChild(input);
+        container.appendChild(fieldDiv);
+    });
+    
+    // 폼 표시
+    form.classList.remove('hidden');
+    
+    // 폼으로 스크롤
+    form.scrollIntoView({ behavior: 'smooth' });
+}
+
+// 💾 필수 필드 저장
+async function saveMissingFields() {
+    const form = document.getElementById('missingFieldsForm');
+    const inputs = form.querySelectorAll('input[id^="missing_"]');
+    
+    // 입력값 검증
+    let hasEmptyFields = false;
+    const fieldValues = {};
+    
+    inputs.forEach(input => {
+        const fieldName = input.id.replace('missing_', '');
+        const value = input.value.trim();
+        
+        if (value === '') {
+            hasEmptyFields = true;
+            input.style.borderColor = '#dc3545';
+        } else {
+            input.style.borderColor = '#dee2e6';
+            fieldValues[fieldName] = value;
+        }
+    });
+    
+    if (hasEmptyFields) {
+        showAlert('warning', '모든 필수 필드를 입력해주세요.');
+        return;
+    }
+    
+    try {
+        // 현재 매핑에 입력값들을 추가 (고정값으로 설정)
+        Object.keys(fieldValues).forEach(field => {
+            currentMapping[field] = `[고정값: ${fieldValues[field]}]`;
+        });
+        
+        // 매핑 저장
+        const mappingData = {
+            mappingName: `mapping_${Date.now()}`,
+            sourceFields: Object.values(currentMapping),
+            targetFields: Object.keys(currentMapping),
+            mappingRules: currentMapping,
+            fixedValues: fieldValues // 고정값들을 별도로 전송
+        };
+        
+        showLoading('매핑 규칙을 저장하고 있습니다...');
+        
+        const response = await fetch('/api/orders/mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mappingData)
+        });
+        
+        const result = await response.json();
+        
+        hideLoading();
+        
+        if (result.success) {
+            // 타겟 필드들의 매핑 상태 업데이트
+            Object.keys(fieldValues).forEach(field => {
+                const targetField = document.querySelector(`[data-target="${field}"]`);
+                if (targetField) {
+                    targetField.classList.add('selected');
+                    targetField.textContent = `${field} ← [고정값]`;
+                }
+            });
+            
+            showAlert('success', '✅ 필수 정보가 저장되었습니다. 매핑이 완료되었습니다.');
+            
+            // 매핑 저장 상태 표시
+            sessionStorage.setItem('mappingSaved', 'true');
+            
+            // GENERATE ORDER 버튼 활성화
+            updateGenerateOrderButton();
+            
+            // 폼 숨기기
+            hideMissingFieldsForm();
+            
+        } else {
+            showAlert('error', result.error || '매핑 저장에 실패했습니다.');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('필수 필드 저장 오류:', error);
+        showAlert('error', '필수 필드 저장 중 오류가 발생했습니다.');
+    }
+}
+
+// 🚫 필수 필드 입력 폼 숨기기
+function hideMissingFieldsForm() {
+    const form = document.getElementById('missingFieldsForm');
+    form.classList.add('hidden');
+}
+
+// 📝 직접 입력 폼 표시
+function showDirectInputForm() {
+    // 모든 단계 숨기기
+    resetAllSteps();
+    
+    // 직접 입력 폼 표시
+    const directInputStep = document.getElementById('directInputStep');
+    directInputStep.classList.remove('hidden');
+    
+    // 폼으로 스크롤
+    directInputStep.scrollIntoView({ behavior: 'smooth' });
+}
+
+// 💾 직접 입력 데이터 저장 및 발주서 생성
+async function saveDirectInput() {
+    // 필수 필드 검증
+    const requiredFields = ['상품명', '연락처', '주소'];
+    const inputData = {};
+    let hasEmptyRequired = false;
+    
+    // 모든 필드 값 수집
+    ['상품명', '연락처', '주소', '수량', '단가', '고객명'].forEach(field => {
+        const input = document.getElementById(`direct_${field}`);
+        const value = input.value.trim();
+        
+        if (requiredFields.includes(field) && value === '') {
+            hasEmptyRequired = true;
+            input.style.borderColor = '#dc3545';
+        } else {
+            input.style.borderColor = '#dee2e6';
+            if (value !== '') {
+                inputData[field] = value;
+            }
+        }
+    });
+    
+    if (hasEmptyRequired) {
+        showAlert('warning', '필수 필드를 모두 입력해주세요. (상품명, 연락처, 주소)');
+        return;
+    }
+    
+    try {
+        showLoading('직접 입력 데이터로 발주서를 생성하고 있습니다...');
+        
+        // 직접 입력 데이터를 매핑 형태로 변환
+        const mappingData = {
+            mappingName: `direct_input_${Date.now()}`,
+            sourceFields: [],
+            targetFields: Object.keys(inputData),
+            mappingRules: {},
+            fixedValues: inputData,
+            isDirect: true // 직접 입력 플래그
+        };
+        
+        // 매핑 저장
+        const mappingResponse = await fetch('/api/orders/mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mappingData)
+        });
+        
+        const mappingResult = await mappingResponse.json();
+        
+        if (!mappingResult.success) {
+            throw new Error(mappingResult.error || '매핑 저장에 실패했습니다.');
+        }
+        
+        // 직접 입력 데이터로 발주서 생성
+        const generateResponse = await fetch('/api/orders/generate-direct', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mappingId: mappingData.mappingName,
+                inputData: inputData,
+                templateType: 'standard'
+            })
+        });
+        
+        const generateResult = await generateResponse.json();
+        
+        hideLoading();
+        
+        if (generateResult.success) {
+            generatedFileName = generateResult.generatedFile;
+            
+            // 성공 결과 표시
+            showAlert('success', '✅ 직접 입력 데이터로 발주서가 생성되었습니다!');
+            
+            // 결과 표시 및 이메일 단계로 이동
+            showDirectInputResult(generateResult);
+            showStep(3);
+            showStep(4);
+            
+        } else {
+            showAlert('error', generateResult.error || '발주서 생성에 실패했습니다.');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('직접 입력 저장 오류:', error);
+        showAlert('error', '직접 입력 처리 중 오류가 발생했습니다.');
+    }
+}
+
+// 📋 직접 입력 결과 표시
+function showDirectInputResult(result) {
+    const generateResult = document.getElementById('generateResult');
+    
+    generateResult.innerHTML = `
+        <div class="alert alert-success">
+            ✅ 직접 입력 데이터로 발주서가 성공적으로 생성되었습니다!<br>
+            <strong>입력된 정보:</strong> ${Object.keys(result.inputData || {}).length}개 필드<br>
+            <strong>생성된 파일:</strong> ${result.generatedFile}
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="${result.downloadUrl}" class="btn btn-success" download>DOWNLOAD ORDER</a>
+        </div>
+    `;
+}
+
+// 🚫 직접 입력 취소
+function cancelDirectInput() {
+    // 직접 입력 폼의 입력값 초기화
+    ['상품명', '연락처', '주소', '수량', '단가', '고객명'].forEach(field => {
+        const input = document.getElementById(`direct_${field}`);
+        if (input) {
+            input.value = '';
+            input.style.borderColor = '#dee2e6';
+        }
+    });
+    
+    // 모든 상태 초기화 (resetAllSteps 사용)
+    resetAllSteps();
+    
+    // 1단계만 표시
+    const step1 = document.getElementById('step1');
+    if (step1) {
+        step1.classList.remove('hidden');
+    }
+    
+    console.log('🔄 직접 입력 취소: 모든 상태 초기화 완료');
 } 

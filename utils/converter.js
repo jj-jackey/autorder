@@ -52,40 +52,128 @@ async function readSourceFile(filePath) {
   }
 }
 
-// 📊 Excel 파일 읽기
+// 📊 Excel 파일 읽기 (개선된 버전 - 복잡한 구조 지원)
 async function readExcelFile(filePath) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
   
-  const worksheet = workbook.getWorksheet(1);
-  const data = [];
+  console.log('📊 총 워크시트 개수:', workbook.worksheets.length);
   
-  if (!worksheet) {
-    throw new Error('워크시트를 찾을 수 없습니다.');
-  }
+  // 1. 가장 적합한 워크시트 찾기
+  let bestWorksheet = null;
+  let bestScore = 0;
   
-  // 헤더 읽기
-  const headerRow = worksheet.getRow(1);
-  const headers = [];
-  headerRow.eachCell((cell, colNumber) => {
-    headers.push(cell.value ? cell.value.toString().trim() : `컬럼${colNumber}`);
+  workbook.worksheets.forEach((worksheet, index) => {
+    console.log(`📄 워크시트 ${index + 1} 분석: ${worksheet.name} (행:${worksheet.rowCount}, 열:${worksheet.columnCount})`);
+    
+    // 데이터가 없거나 너무 적은 워크시트 제외
+    if (worksheet.rowCount < 2 || worksheet.columnCount === 0) {
+      console.log(`❌ 워크시트 ${index + 1} 제외: 데이터 부족`);
+      return;
+    }
+    
+    // 워크시트 점수 계산
+    let score = 0;
+    
+    // 이름으로 점수 추가
+    const sheetName = worksheet.name.toLowerCase();
+    if (sheetName.includes('sheet') || sheetName.includes('데이터') || sheetName.includes('주문')) {
+      score += 10;
+    }
+    if (sheetName.includes('요약') || sheetName.includes('피벗')) {
+      score -= 20; // 요약/피벗 테이블은 피함
+    }
+    
+    // 데이터 양으로 점수 추가
+    score += Math.min(worksheet.rowCount / 10, 20); // 최대 20점
+    score += Math.min(worksheet.columnCount, 10); // 최대 10점
+    
+    console.log(`📊 워크시트 ${index + 1} 점수: ${score}`);
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestWorksheet = worksheet;
+    }
   });
   
-  // 데이터 읽기
-  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
-    const row = worksheet.getRow(rowNumber);
+  if (!bestWorksheet) {
+    throw new Error('적절한 워크시트를 찾을 수 없습니다.');
+  }
+  
+  console.log(`✅ 선택된 워크시트: ${bestWorksheet.name}`);
+  
+  // 2. 헤더 행 찾기
+  let headerRowNum = 1;
+  let headers = [];
+  let maxHeaderScore = 0;
+  
+  for (let rowNumber = 1; rowNumber <= Math.min(10, bestWorksheet.rowCount); rowNumber++) {
+    const row = bestWorksheet.getRow(rowNumber);
+    const potentialHeaders = [];
+    let headerScore = 0;
+    
+    // 현재 행의 셀들을 확인
+    for (let colNumber = 1; colNumber <= bestWorksheet.columnCount; colNumber++) {
+      const cell = row.getCell(colNumber);
+      const value = cell.value ? cell.value.toString().trim() : '';
+      potentialHeaders.push(value);
+      
+      // 헤더 키워드로 점수 계산
+      if (value) {
+        if (value.includes('상품') || value.includes('제품') || value.includes('품목')) headerScore += 10;
+        if (value.includes('수량') || value.includes('qty')) headerScore += 10;
+        if (value.includes('가격') || value.includes('단가') || value.includes('price')) headerScore += 10;
+        if (value.includes('고객') || value.includes('주문자') || value.includes('이름') || value.includes('성')) headerScore += 8;
+        if (value.includes('연락') || value.includes('전화') || value.includes('휴대폰')) headerScore += 8;
+        if (value.includes('주소') || value.includes('배송')) headerScore += 8;
+        if (value.includes('이메일') || value.includes('email')) headerScore += 5;
+        if (value.length > 0) headerScore += 1; // 빈 값이 아니면 1점
+      }
+    }
+    
+    console.log(`행 ${rowNumber} 헤더 점수: ${headerScore}, 샘플: [${potentialHeaders.slice(0, 5).join(', ')}...]`);
+    
+    if (headerScore > maxHeaderScore && headerScore > 5) { // 최소 점수 조건
+      maxHeaderScore = headerScore;
+      headerRowNum = rowNumber;
+      headers = potentialHeaders.filter(h => h !== ''); // 빈 값 제거
+    }
+  }
+  
+  if (headers.length === 0) {
+    // 헤더를 찾지 못한 경우 기본 컬럼명 생성
+    console.log('⚠️ 헤더를 찾지 못함, 기본 컬럼명 사용');
+    const firstDataRow = bestWorksheet.getRow(1);
+    for (let colNumber = 1; colNumber <= bestWorksheet.columnCount; colNumber++) {
+      headers.push(`컬럼${colNumber}`);
+    }
+    headerRowNum = 0; // 데이터가 1행부터 시작
+  }
+  
+  console.log(`✅ 헤더 행: ${headerRowNum}, 헤더 개수: ${headers.length}`);
+  console.log(`📋 발견된 헤더: [${headers.slice(0, 8).join(', ')}...]`);
+  
+  // 3. 데이터 읽기
+  const data = [];
+  const dataStartRow = headerRowNum + 1;
+  
+  for (let rowNumber = dataStartRow; rowNumber <= bestWorksheet.rowCount; rowNumber++) {
+    const row = bestWorksheet.getRow(rowNumber);
     const rowData = {};
     
     headers.forEach((header, index) => {
       const cell = row.getCell(index + 1);
-      rowData[header] = cell.value ? cell.value.toString().trim() : '';
+      const value = cell.value ? cell.value.toString().trim() : '';
+      rowData[header] = value;
     });
     
-    // 빈 행 제외
+    // 빈 행 제외 (모든 값이 빈 문자열인 경우)
     if (Object.values(rowData).some(value => value !== '')) {
       data.push(rowData);
     }
   }
+  
+  console.log(`✅ 읽은 데이터 행 수: ${data.length}`);
   
   return { headers, data };
 }
@@ -121,7 +209,7 @@ async function readCSVFile(filePath) {
 // 🗺️ 매핑 규칙 적용
 function applyMappingRules(sourceData, mappingRules) {
   const { headers, data } = sourceData;
-  const { rules } = mappingRules;
+  const { rules, fixedValues } = mappingRules;
   
   if (!rules || Object.keys(rules).length === 0) {
     // 기본 매핑 적용
@@ -134,10 +222,24 @@ function applyMappingRules(sourceData, mappingRules) {
     // 매핑 규칙에 따라 데이터 변환
     Object.keys(rules).forEach(targetField => {
       const sourceField = rules[targetField];
-      if (sourceField && row[sourceField] !== undefined) {
+      
+      // 고정값 패턴 확인 ([고정값: xxx] 형태)
+      if (sourceField && sourceField.startsWith('[고정값:') && sourceField.endsWith(']')) {
+        // 고정값에서 실제 값 추출
+        const fixedValue = sourceField.substring(6, sourceField.length - 1); // '[고정값:' 제거하고 ']' 제거
+        transformedRow[targetField] = fixedValue.trim();
+      } else if (sourceField && row[sourceField] !== undefined) {
+        // 일반 필드 매핑
         transformedRow[targetField] = row[sourceField];
       }
     });
+    
+    // 고정값이 별도로 전달된 경우 적용
+    if (fixedValues && Object.keys(fixedValues).length > 0) {
+      Object.keys(fixedValues).forEach(field => {
+        transformedRow[field] = fixedValues[field];
+      });
+    }
     
     // 계산 필드 추가
     if (transformedRow.수량 && transformedRow.단가) {
@@ -220,7 +322,7 @@ async function generatePurchaseOrder(templateFilePath, transformedData) {
   
   // 헤더 설정 (데이터 시작 행 바로 위)
   const headerRow = worksheet.getRow(dataStartRow - 1);
-  const standardHeaders = ['NO', '상품명', '수량', '단가', '금액', '고객명', '연락처', '주소'];
+  const standardHeaders = ['발주번호', '발주일자', '품목명', '주문수량', '단가', '공급가액', '받는 분', '전화번호', '주소'];
   
   standardHeaders.forEach((header, index) => {
     headerRow.getCell(index + 1).value = header;
@@ -235,14 +337,19 @@ async function generatePurchaseOrder(templateFilePath, transformedData) {
     try {
       const dataRow = worksheet.getRow(dataStartRow + index);
       
-      dataRow.getCell(1).value = index + 1; // NO
-      dataRow.getCell(2).value = row.상품명 || '';
-      dataRow.getCell(3).value = row.수량 ? parseInt(row.수량) : '';
-      dataRow.getCell(4).value = row.단가 ? parseFloat(row.단가) : '';
-      dataRow.getCell(5).value = row.금액 ? parseFloat(row.금액) : '';
-      dataRow.getCell(6).value = row.고객명 || '';
-      dataRow.getCell(7).value = row.연락처 || '';
-      dataRow.getCell(8).value = row.주소 || '';
+      // 발주번호 생성 (ORD + 날짜 + 순번)
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const orderNumber = `ORD${today}-${String(index + 1).padStart(3, '0')}`;
+      
+      dataRow.getCell(1).value = orderNumber; // 발주번호
+      dataRow.getCell(2).value = new Date(); // 발주일자
+      dataRow.getCell(3).value = row.상품명 || ''; // 품목명
+      dataRow.getCell(4).value = row.수량 ? parseInt(row.수량) : ''; // 주문수량
+      dataRow.getCell(5).value = row.단가 ? parseFloat(row.단가) : ''; // 단가
+      dataRow.getCell(6).value = row.금액 ? parseFloat(row.금액) : ''; // 공급가액
+      dataRow.getCell(7).value = row.고객명 || ''; // 받는 분
+      dataRow.getCell(8).value = row.연락처 || ''; // 전화번호
+      dataRow.getCell(9).value = row.주소 || ''; // 주소
       
       processedRows.push(row);
       
@@ -258,14 +365,14 @@ async function generatePurchaseOrder(templateFilePath, transformedData) {
   // 합계 행 추가 - 수식 대신 계산된 값 사용
   if (processedRows.length > 0) {
     const totalRow = worksheet.getRow(dataStartRow + transformedData.length);
-    totalRow.getCell(2).value = '합계';
+    totalRow.getCell(3).value = '합계'; // 품목명 위치에 합계 표시
     
     // 수식 대신 직접 계산한 값 사용
     const totalQuantity = processedRows.reduce((sum, row) => sum + (parseInt(row.수량) || 0), 0);
     const totalAmount = processedRows.reduce((sum, row) => sum + (parseFloat(row.금액) || 0), 0);
     
-    totalRow.getCell(3).value = totalQuantity;
-    totalRow.getCell(5).value = totalAmount;
+    totalRow.getCell(4).value = totalQuantity; // 주문수량
+    totalRow.getCell(6).value = totalAmount; // 공급가액
     totalRow.font = { bold: true };
   }
   
@@ -348,7 +455,7 @@ async function createSimpleWorkbook(transformedData, outputPath, fileName) {
   simpleWorksheet.getCell('A1').alignment = { horizontal: 'center' };
   
   // 헤더 설정
-  const standardHeaders = ['NO', '상품명', '수량', '단가', '금액', '고객명', '연락처', '주소'];
+  const standardHeaders = ['발주번호', '발주일자', '품목명', '주문수량', '단가', '공급가액', '받는 분', '전화번호', '주소'];
   standardHeaders.forEach((header, index) => {
     const cell = simpleWorksheet.getCell(2, index + 1);
     cell.value = header;
@@ -369,17 +476,23 @@ async function createSimpleWorkbook(transformedData, outputPath, fileName) {
   transformedData.forEach((row, index) => {
     try {
       const dataRowNum = index + 3;
-      simpleWorksheet.getCell(dataRowNum, 1).value = index + 1;
-      simpleWorksheet.getCell(dataRowNum, 2).value = row.상품명 || '';
-      simpleWorksheet.getCell(dataRowNum, 3).value = row.수량 ? parseInt(row.수량) : '';
-      simpleWorksheet.getCell(dataRowNum, 4).value = row.단가 ? parseFloat(row.단가) : '';
-      simpleWorksheet.getCell(dataRowNum, 5).value = row.금액 ? parseFloat(row.금액) : '';
-      simpleWorksheet.getCell(dataRowNum, 6).value = row.고객명 || '';
-      simpleWorksheet.getCell(dataRowNum, 7).value = row.연락처 || '';
-      simpleWorksheet.getCell(dataRowNum, 8).value = row.주소 || '';
+      
+      // 발주번호 생성 (ORD + 날짜 + 순번)
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const orderNumber = `ORD${today}-${String(index + 1).padStart(3, '0')}`;
+      
+      simpleWorksheet.getCell(dataRowNum, 1).value = orderNumber; // 발주번호
+      simpleWorksheet.getCell(dataRowNum, 2).value = new Date(); // 발주일자
+      simpleWorksheet.getCell(dataRowNum, 3).value = row.상품명 || ''; // 품목명
+      simpleWorksheet.getCell(dataRowNum, 4).value = row.수량 ? parseInt(row.수량) : ''; // 주문수량
+      simpleWorksheet.getCell(dataRowNum, 5).value = row.단가 ? parseFloat(row.단가) : ''; // 단가
+      simpleWorksheet.getCell(dataRowNum, 6).value = row.금액 ? parseFloat(row.금액) : ''; // 공급가액
+      simpleWorksheet.getCell(dataRowNum, 7).value = row.고객명 || ''; // 받는 분
+      simpleWorksheet.getCell(dataRowNum, 8).value = row.연락처 || ''; // 전화번호
+      simpleWorksheet.getCell(dataRowNum, 9).value = row.주소 || ''; // 주소
       
       // 테두리 추가
-      for (let col = 1; col <= 8; col++) {
+      for (let col = 1; col <= 9; col++) {
         simpleWorksheet.getCell(dataRowNum, col).border = {
           top: { style: 'thin' },
           left: { style: 'thin' },
@@ -405,11 +518,11 @@ async function createSimpleWorkbook(transformedData, outputPath, fileName) {
     const totalQuantity = processedRows.reduce((sum, row) => sum + (parseInt(row.수량) || 0), 0);
     const totalAmount = processedRows.reduce((sum, row) => sum + (parseFloat(row.금액) || 0), 0);
     
-    simpleWorksheet.getCell(totalRowNum, 2).value = '합계';
-    simpleWorksheet.getCell(totalRowNum, 3).value = totalQuantity;
-    simpleWorksheet.getCell(totalRowNum, 5).value = totalAmount;
+    simpleWorksheet.getCell(totalRowNum, 3).value = '합계'; // 품목명 위치
+    simpleWorksheet.getCell(totalRowNum, 4).value = totalQuantity; // 주문수량
+    simpleWorksheet.getCell(totalRowNum, 6).value = totalAmount; // 공급가액
     
-    for (let col = 1; col <= 8; col++) {
+    for (let col = 1; col <= 9; col++) {
       const cell = simpleWorksheet.getCell(totalRowNum, col);
       cell.font = { bold: true };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
@@ -424,13 +537,14 @@ async function createSimpleWorkbook(transformedData, outputPath, fileName) {
   
   // 열 너비 조정
   simpleWorksheet.columns = [
-    { width: 5 },   // NO
-    { width: 20 },  // 상품명
-    { width: 8 },   // 수량
+    { width: 15 },  // 발주번호
+    { width: 12 },  // 발주일자
+    { width: 20 },  // 품목명
+    { width: 10 },  // 주문수량
     { width: 12 },  // 단가
-    { width: 12 },  // 금액
-    { width: 15 },  // 고객명
-    { width: 15 },  // 연락처
+    { width: 12 },  // 공급가액
+    { width: 15 },  // 받는 분
+    { width: 15 },  // 전화번호
     { width: 25 }   // 주소
   ];
   
@@ -445,9 +559,40 @@ async function createSimpleWorkbook(transformedData, outputPath, fileName) {
   };
 }
 
+// 📝 직접 입력 데이터를 표준 발주서로 변환
+async function convertDirectInputToStandardFormat(templateFilePath, inputData, mappingRules) {
+  try {
+    console.log('📝 직접 입력 데이터 변환 시작');
+    console.log('📂 템플릿 파일:', templateFilePath);
+    console.log('📝 입력 데이터:', inputData);
+    
+    const outputDir = getOutputDir();
+    
+    // 출력 디렉토리 확인 및 생성
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+      console.log('📁 출력 디렉토리 생성됨:', outputDir);
+    }
+    
+    // 직접 입력 데이터를 표준 형식으로 변환
+    const transformedData = [inputData]; // 단일 행 데이터로 처리
+    
+    // 발주서 템플릿에 데이터 삽입
+    const result = await generatePurchaseOrder(templateFilePath, transformedData);
+    
+    return result;
+    
+  } catch (error) {
+    console.error('직접 입력 데이터 변환 오류:', error);
+    throw new Error(`직접 입력 데이터 변환 중 오류가 발생했습니다: ${error.message}`);
+  }
+}
+
 module.exports = {
   convertToStandardFormat,
+  convertDirectInputToStandardFormat,
   readSourceFile,
+  readExcelFile,
   applyMappingRules,
   generatePurchaseOrder
 }; 

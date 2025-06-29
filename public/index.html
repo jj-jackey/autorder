@@ -398,6 +398,58 @@
             font-weight: 500;
         }
 
+
+
+        /* 필수 필드 안내 스타일 */
+        .required-fields-info {
+            margin-top: 25px;
+            padding: 20px;
+            background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .required-fields-info h4 {
+            margin-bottom: 10px;
+            color: #495057;
+            font-weight: 600;
+        }
+
+        .required-fields-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 15px 0;
+        }
+
+        .field-tag {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: 500;
+            border: 1px solid;
+        }
+
+        .field-tag.required {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffeaa7;
+        }
+
+        .field-tag.optional {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #bee5eb;
+        }
+
+        .field-note {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
         .progress-text #progressPercent {
             color: #28a745;
             font-weight: bold;
@@ -558,9 +610,11 @@
 
         <!-- 메인 콘텐츠 -->
         <div class="main-content">
-            <!-- 1단계: 파일 업로드 -->
+            <!-- 1단계: 주문서 파일 업로드 -->
             <div class="step" id="step1">
                 <h3>STEP 1. 주문서 파일 업로드</h3>
+                <p>다양한 형태의 주문서를 업로드하면 표준 발주서 양식으로 자동 변환됩니다.</p>
+                
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-icon">⬆</div>
                     <h4>주문서 파일을 여기에 끌어다 놓으세요</h4>
@@ -572,6 +626,77 @@
                 <div id="uploadResult" class="hidden">
                     <div id="uploadAlert"></div>
                     <div id="previewContainer"></div>
+                </div>
+                
+                <!-- 필수 필드 안내 -->
+                <div class="required-fields-info">
+                    <h4>📋 필수 정보 확인 사항</h4>
+                    <p>업로드할 주문서에 다음 정보가 포함되어 있는지 확인하세요:</p>
+                    <div class="required-fields-list">
+                        <span class="field-tag required">상품명 *</span>
+                        <span class="field-tag required">연락처 *</span>
+                        <span class="field-tag required">주소 *</span>
+                        <span class="field-tag optional">수량</span>
+                        <span class="field-tag optional">단가</span>
+                        <span class="field-tag optional">고객명</span>
+                    </div>
+                    <p class="field-note">* 표시는 필수 항목입니다. 누락된 경우 매핑 단계에서 직접 입력할 수 있습니다.</p>
+                </div>
+                
+                <!-- 직접 입력 버튼 -->
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn" onclick="showDirectInputForm()" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                        📝 주문서 없이 직접 입력하기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 직접 입력 폼 (주문서 없이 입력) -->
+            <div class="step hidden" id="directInputStep">
+                <h3>📝 직접 주문 정보 입력</h3>
+                <p>주문서 파일 없이 주문 정보를 직접 입력하여 발주서를 생성합니다.</p>
+                
+                <div style="background: linear-gradient(145deg, #e3f2fd 0%, #bbdefb 100%); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: #1976d2; margin-bottom: 15px;">📋 주문 정보 입력</h4>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                        <!-- 필수 필드들 -->
+                        <div class="form-group vertical">
+                            <label for="direct_상품명" style="color: #1976d2; font-weight: 600;">상품명 *</label>
+                            <input type="text" id="direct_상품명" class="form-control" placeholder="상품명을 입력하세요" required>
+                        </div>
+                        
+                        <div class="form-group vertical">
+                            <label for="direct_연락처" style="color: #1976d2; font-weight: 600;">연락처 *</label>
+                            <input type="text" id="direct_연락처" class="form-control" placeholder="연락처를 입력하세요" required>
+                        </div>
+                        
+                        <div class="form-group vertical">
+                            <label for="direct_주소" style="color: #1976d2; font-weight: 600;">주소 *</label>
+                            <input type="text" id="direct_주소" class="form-control" placeholder="주소를 입력하세요" required>
+                        </div>
+                        
+                        <!-- 선택 필드들 -->
+                        <div class="form-group vertical">
+                            <label for="direct_수량" style="color: #666; font-weight: 600;">수량</label>
+                            <input type="number" id="direct_수량" class="form-control" placeholder="수량을 입력하세요">
+                        </div>
+                        
+                        <div class="form-group vertical">
+                            <label for="direct_단가" style="color: #666; font-weight: 600;">단가</label>
+                            <input type="number" id="direct_단가" class="form-control" placeholder="단가를 입력하세요">
+                        </div>
+                        
+                        <div class="form-group vertical">
+                            <label for="direct_고객명" style="color: #666; font-weight: 600;">고객명</label>
+                            <input type="text" id="direct_고객명" class="form-control" placeholder="고객명을 입력하세요">
+                        </div>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 25px;">
+                        <button class="btn btn-success" onclick="saveDirectInput()">✅ 입력 완료 및 발주서 생성</button>
+                        <button class="btn" onclick="cancelDirectInput()">취소</button>
+                    </div>
                 </div>
             </div>
 
@@ -604,6 +729,21 @@
                 <div style="text-align: center; margin-top: 20px;">
                     <button class="btn" onclick="saveMapping()">SAVE MAPPING</button>
                     <button class="btn btn-success" onclick="generateOrder()" disabled style="opacity: 0.5; cursor: not-allowed;">GENERATE ORDER</button>
+                </div>
+                
+                <!-- 필수 필드 입력 폼 (필수 필드가 누락되었을 때만 표시) -->
+                <div id="missingFieldsForm" class="hidden" style="margin-top: 30px; padding: 20px; background: linear-gradient(145deg, #fff3cd 0%, #ffeaa7 100%); border-radius: 8px; border: 1px solid #ffeaa7;">
+                    <h4 style="color: #856404; margin-bottom: 15px;">⚠️ 필수 필드 입력</h4>
+                    <p style="color: #856404; margin-bottom: 20px;">다음 필수 정보가 매핑되지 않았습니다. 직접 입력하여 완성하세요:</p>
+                    
+                    <div id="missingFieldsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                        <!-- 동적으로 생성될 입력 필드들 -->
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="btn btn-success" onclick="saveMissingFields()">필수 정보 저장</button>
+                        <button class="btn" onclick="hideMissingFieldsForm()">취소</button>
+                    </div>
                 </div>
             </div>
 
