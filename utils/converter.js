@@ -54,47 +54,88 @@ async function readSourceFile(filePath) {
 
 // 📊 Excel 파일 읽기 (개선된 버전 - 복잡한 구조 지원)
 async function readExcelFile(filePath) {
+  console.log('📊 Excel 파일 읽기 시작:', {
+    path: filePath,
+    timestamp: new Date().toISOString()
+  });
+
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
   
-  console.log('📊 총 워크시트 개수:', workbook.worksheets.length);
+  try {
+    // 파일 존재 확인
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+    }
+    
+    // 파일 크기 확인
+    const stats = fs.statSync(filePath);
+    console.log('📊 파일 정보:', {
+      size: stats.size,
+      sizeInMB: (stats.size / 1024 / 1024).toFixed(2) + 'MB'
+    });
+    
+    // 메모리 효율적인 옵션으로 파일 읽기
+    await workbook.xlsx.readFile(filePath, {
+      sharedStrings: 'cache',
+      hyperlinks: 'ignore',
+      worksheets: 'emit',
+      styles: 'cache'
+    });
+    
+    console.log('📊 총 워크시트 개수:', workbook.worksheets.length);
+    
+  } catch (readError) {
+    console.error('❌ Excel 파일 읽기 실패:', readError.message);
+    throw new Error(`Excel 파일을 읽을 수 없습니다: ${readError.message}`);
+  }
   
   // 1. 가장 적합한 워크시트 찾기
   let bestWorksheet = null;
   let bestScore = 0;
   
-  workbook.worksheets.forEach((worksheet, index) => {
-    console.log(`📄 워크시트 ${index + 1} 분석: ${worksheet.name} (행:${worksheet.rowCount}, 열:${worksheet.columnCount})`);
-    
-    // 데이터가 없거나 너무 적은 워크시트 제외
-    if (worksheet.rowCount < 2 || worksheet.columnCount === 0) {
-      console.log(`❌ 워크시트 ${index + 1} 제외: 데이터 부족`);
-      return;
-    }
-    
-    // 워크시트 점수 계산
-    let score = 0;
-    
-    // 이름으로 점수 추가
-    const sheetName = worksheet.name.toLowerCase();
-    if (sheetName.includes('sheet') || sheetName.includes('데이터') || sheetName.includes('주문')) {
-      score += 10;
-    }
-    if (sheetName.includes('요약') || sheetName.includes('피벗')) {
-      score -= 20; // 요약/피벗 테이블은 피함
-    }
-    
-    // 데이터 양으로 점수 추가
-    score += Math.min(worksheet.rowCount / 10, 20); // 최대 20점
-    score += Math.min(worksheet.columnCount, 10); // 최대 10점
-    
-    console.log(`📊 워크시트 ${index + 1} 점수: ${score}`);
-    
-    if (score > bestScore) {
-      bestScore = score;
-      bestWorksheet = worksheet;
-    }
-  });
+  try {
+    workbook.worksheets.forEach((worksheet, index) => {
+      try {
+        console.log(`📄 워크시트 ${index + 1} 분석: ${worksheet.name} (행:${worksheet.rowCount}, 열:${worksheet.columnCount})`);
+        
+        // 데이터가 없거나 너무 적은 워크시트 제외
+        if (worksheet.rowCount < 2 || worksheet.columnCount === 0) {
+          console.log(`❌ 워크시트 ${index + 1} 제외: 데이터 부족`);
+          return;
+        }
+        
+        // 워크시트 점수 계산
+        let score = 0;
+        
+        // 이름으로 점수 추가
+        const sheetName = worksheet.name.toLowerCase();
+        if (sheetName.includes('sheet') || sheetName.includes('데이터') || sheetName.includes('주문')) {
+          score += 10;
+        }
+        if (sheetName.includes('요약') || sheetName.includes('피벗')) {
+          score -= 20; // 요약/피벗 테이블은 피함
+        }
+        
+        // 데이터 양으로 점수 추가
+        score += Math.min(worksheet.rowCount / 10, 20); // 최대 20점
+        score += Math.min(worksheet.columnCount, 10); // 최대 10점
+        
+        console.log(`📊 워크시트 ${index + 1} 점수: ${score}`);
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestWorksheet = worksheet;
+        }
+      } catch (sheetError) {
+        console.warn(`⚠️ 워크시트 ${index + 1} 분석 중 오류 (건너뜀):`, sheetError.message);
+      }
+    });
+  } catch (worksheetError) {
+    console.error('❌ 워크시트 분석 중 오류:', worksheetError.message);
+    // 첫 번째 워크시트를 기본으로 사용
+    bestWorksheet = workbook.getWorksheet(1);
+    console.log('🔄 첫 번째 워크시트를 기본으로 사용');
+  }
   
   if (!bestWorksheet) {
     throw new Error('적절한 워크시트를 찾을 수 없습니다.');
@@ -107,36 +148,49 @@ async function readExcelFile(filePath) {
   let headers = [];
   let maxHeaderScore = 0;
   
-  for (let rowNumber = 1; rowNumber <= Math.min(10, bestWorksheet.rowCount); rowNumber++) {
-    const row = bestWorksheet.getRow(rowNumber);
-    const potentialHeaders = [];
-    let headerScore = 0;
-    
-    // 현재 행의 셀들을 확인
-    for (let colNumber = 1; colNumber <= bestWorksheet.columnCount; colNumber++) {
-      const cell = row.getCell(colNumber);
-      const value = cell.value ? cell.value.toString().trim() : '';
-      potentialHeaders.push(value);
+  const maxRowsToCheck = Math.min(10, bestWorksheet.rowCount);
+  console.log(`🔍 헤더 검색 범위: 1-${maxRowsToCheck}행`);
+  
+  for (let rowNumber = 1; rowNumber <= maxRowsToCheck; rowNumber++) {
+    try {
+      const row = bestWorksheet.getRow(rowNumber);
+      const potentialHeaders = [];
+      let headerScore = 0;
       
-      // 헤더 키워드로 점수 계산
-      if (value) {
-        if (value.includes('상품') || value.includes('제품') || value.includes('품목')) headerScore += 10;
-        if (value.includes('수량') || value.includes('qty')) headerScore += 10;
-        if (value.includes('가격') || value.includes('단가') || value.includes('price')) headerScore += 10;
-        if (value.includes('고객') || value.includes('주문자') || value.includes('이름') || value.includes('성')) headerScore += 8;
-        if (value.includes('연락') || value.includes('전화') || value.includes('휴대폰')) headerScore += 8;
-        if (value.includes('주소') || value.includes('배송')) headerScore += 8;
-        if (value.includes('이메일') || value.includes('email')) headerScore += 5;
-        if (value.length > 0) headerScore += 1; // 빈 값이 아니면 1점
+      // 현재 행의 셀들을 확인 (최대 20개 컬럼만)
+      const maxColumnsToCheck = Math.min(20, bestWorksheet.columnCount);
+      for (let colNumber = 1; colNumber <= maxColumnsToCheck; colNumber++) {
+        try {
+          const cell = row.getCell(colNumber);
+          const value = cell.value ? cell.value.toString().trim() : '';
+          potentialHeaders.push(value);
+          
+          // 헤더 키워드로 점수 계산
+          if (value) {
+            if (value.includes('상품') || value.includes('제품') || value.includes('품목')) headerScore += 10;
+            if (value.includes('수량') || value.includes('qty')) headerScore += 10;
+            if (value.includes('가격') || value.includes('단가') || value.includes('price')) headerScore += 10;
+            if (value.includes('고객') || value.includes('주문자') || value.includes('이름') || value.includes('성')) headerScore += 8;
+            if (value.includes('연락') || value.includes('전화') || value.includes('휴대폰')) headerScore += 8;
+            if (value.includes('주소') || value.includes('배송')) headerScore += 8;
+            if (value.includes('이메일') || value.includes('email')) headerScore += 5;
+            if (value.length > 0) headerScore += 1; // 빈 값이 아니면 1점
+          }
+        } catch (cellError) {
+          console.warn(`⚠️ 셀 읽기 오류 (${rowNumber}, ${colNumber}): ${cellError.message}`);
+          potentialHeaders.push('');
+        }
       }
-    }
-    
-    console.log(`행 ${rowNumber} 헤더 점수: ${headerScore}, 샘플: [${potentialHeaders.slice(0, 5).join(', ')}...]`);
-    
-    if (headerScore > maxHeaderScore && headerScore > 5) { // 최소 점수 조건
-      maxHeaderScore = headerScore;
-      headerRowNum = rowNumber;
-      headers = potentialHeaders.filter(h => h !== ''); // 빈 값 제거
+      
+      console.log(`행 ${rowNumber} 헤더 점수: ${headerScore}, 샘플: [${potentialHeaders.slice(0, 5).join(', ')}...]`);
+      
+      if (headerScore > maxHeaderScore && headerScore > 5) { // 최소 점수 조건
+        maxHeaderScore = headerScore;
+        headerRowNum = rowNumber;
+        headers = potentialHeaders.filter(h => h !== ''); // 빈 값 제거
+      }
+    } catch (rowError) {
+      console.warn(`⚠️ 행 ${rowNumber} 처리 중 오류 (건너뜀):`, rowError.message);
     }
   }
   
@@ -156,24 +210,54 @@ async function readExcelFile(filePath) {
   // 3. 데이터 읽기
   const data = [];
   const dataStartRow = headerRowNum + 1;
+  const maxRowsToProcess = Math.min(1000, bestWorksheet.rowCount); // 최대 1000행까지만 처리
   
-  for (let rowNumber = dataStartRow; rowNumber <= bestWorksheet.rowCount; rowNumber++) {
-    const row = bestWorksheet.getRow(rowNumber);
-    const rowData = {};
-    
-    headers.forEach((header, index) => {
-      const cell = row.getCell(index + 1);
-      const value = cell.value ? cell.value.toString().trim() : '';
-      rowData[header] = value;
-    });
-    
-    // 빈 행 제외 (모든 값이 빈 문자열인 경우)
-    if (Object.values(rowData).some(value => value !== '')) {
-      data.push(rowData);
+  console.log(`📋 데이터 읽기 시작: ${dataStartRow}행부터 ${maxRowsToProcess}행까지 (총 ${bestWorksheet.rowCount}행)`);
+  
+  let processedRows = 0;
+  let skippedRows = 0;
+  
+  for (let rowNumber = dataStartRow; rowNumber <= maxRowsToProcess; rowNumber++) {
+    try {
+      const row = bestWorksheet.getRow(rowNumber);
+      const rowData = {};
+      
+      headers.forEach((header, index) => {
+        try {
+          const cell = row.getCell(index + 1);
+          const value = cell.value ? cell.value.toString().trim() : '';
+          rowData[header] = value;
+        } catch (cellError) {
+          console.warn(`⚠️ 셀 읽기 오류 (${rowNumber}, ${index + 1}): ${cellError.message}`);
+          rowData[header] = '';
+        }
+      });
+      
+      // 빈 행 제외 (모든 값이 빈 문자열인 경우)
+      if (Object.values(rowData).some(value => value !== '')) {
+        data.push(rowData);
+        processedRows++;
+      } else {
+        skippedRows++;
+      }
+      
+      // 진행 상황 로그 (100행마다)
+      if (rowNumber % 100 === 0) {
+        console.log(`📊 진행 상황: ${rowNumber}/${maxRowsToProcess}행 처리됨`);
+      }
+      
+    } catch (rowError) {
+      console.warn(`⚠️ 행 ${rowNumber} 처리 중 오류 (건너뜀):`, rowError.message);
+      skippedRows++;
     }
   }
   
-  console.log(`✅ 읽은 데이터 행 수: ${data.length}`);
+  console.log(`✅ 데이터 읽기 완료:`, {
+    processedRows: processedRows,
+    skippedRows: skippedRows,
+    totalDataRows: data.length,
+    processingTime: new Date().toISOString()
+  });
   
   return { headers, data };
 }

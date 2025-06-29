@@ -52,20 +52,31 @@ const storage = process.env.NODE_ENV === 'production'
 const upload = multer({ 
   storage: storage,
   fileFilter: (req, file, cb) => {
+    console.log('🔍 서버 파일 필터 검사:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype
+    });
+    
     const allowedTypes = /xlsx|xls|csv/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype) || 
                      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
                      file.mimetype === 'application/vnd.ms-excel' ||
-                     file.mimetype === 'text/csv';
+                     file.mimetype === 'text/csv' ||
+                     file.mimetype === 'application/octet-stream'; // 일부 브라우저에서 Excel을 이렇게 인식
     
     if (mimetype && extname) {
+      console.log('✅ 서버 파일 필터 통과');
       return cb(null, true);
     } else {
+      console.log('❌ 서버 파일 필터 실패:', { mimetype, extname });
       cb(new Error('파일 형식이 지원되지 않습니다. Excel(.xlsx, .xls) 또는 CSV 파일만 업로드 가능합니다.'));
     }
   },
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB 제한
+  limits: { 
+    fileSize: 50 * 1024 * 1024, // 50MB로 증가
+    fieldSize: 2 * 1024 * 1024   // 2MB
+  }
 });
 
 // API 라우트
@@ -82,12 +93,32 @@ app.get('/', (req, res) => {
 
 // 에러 핸들링
 app.use((error, req, res, next) => {
+  console.error('🚨 서버 에러:', {
+    error: error.message,
+    code: error.code,
+    type: error.constructor.name,
+    timestamp: new Date().toISOString()
+  });
+  
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: '파일 크기가 너무 큽니다. 10MB 이하의 파일을 업로드해주세요.' });
+      return res.status(400).json({ 
+        error: '파일 크기가 너무 큽니다. 50MB 이하의 파일을 업로드해주세요.',
+        code: 'LIMIT_FILE_SIZE'
+      });
+    }
+    if (error.code === 'LIMIT_FIELD_SIZE') {
+      return res.status(400).json({ 
+        error: '필드 크기가 너무 큽니다.',
+        code: 'LIMIT_FIELD_SIZE'
+      });
     }
   }
-  res.status(500).json({ error: error.message });
+  
+  res.status(500).json({ 
+    error: error.message,
+    code: error.code || 'UNKNOWN_ERROR'
+  });
 });
 
 app.listen(PORT, () => {
