@@ -69,10 +69,16 @@ async function readExcelFile(filePath) {
     
     // 파일 크기 확인
     const stats = fs.statSync(filePath);
+    const fileSizeMB = stats.size / 1024 / 1024;
     console.log('📊 파일 정보:', {
       size: stats.size,
-      sizeInMB: (stats.size / 1024 / 1024).toFixed(2) + 'MB'
+      sizeInMB: fileSizeMB.toFixed(2) + 'MB'
     });
+    
+    // Render 환경에서 대용량 파일 경고
+    if (process.env.NODE_ENV === 'production' && fileSizeMB > 10) {
+      console.warn('⚠️ 대용량 파일 감지: 처리 시간이 오래 걸릴 수 있습니다.');
+    }
     
     // 메모리 효율적인 옵션으로 파일 읽기
     await workbook.xlsx.readFile(filePath, {
@@ -157,8 +163,8 @@ async function readExcelFile(filePath) {
       const potentialHeaders = [];
       let headerScore = 0;
       
-      // 현재 행의 셀들을 확인 (최대 20개 컬럼만)
-      const maxColumnsToCheck = Math.min(20, bestWorksheet.columnCount);
+      // 현재 행의 셀들을 확인 (최대 50개 컬럼까지 확장)
+      const maxColumnsToCheck = Math.min(50, bestWorksheet.columnCount);
       for (let colNumber = 1; colNumber <= maxColumnsToCheck; colNumber++) {
         try {
           const cell = row.getCell(colNumber);
@@ -207,10 +213,17 @@ async function readExcelFile(filePath) {
   console.log(`✅ 헤더 행: ${headerRowNum}, 헤더 개수: ${headers.length}`);
   console.log(`📋 발견된 헤더: [${headers.slice(0, 8).join(', ')}...]`);
   
+  // AA 컬럼 (27번째) 확인
+  if (headers.length >= 27) {
+    console.log(`🏠 AA 컬럼 (27번째) 헤더: "${headers[26]}"`);
+  } else {
+    console.log(`❌ AA 컬럼 (27번째)을 찾을 수 없음 - 총 헤더 개수: ${headers.length}`);
+  }
+  
   // 3. 데이터 읽기
   const data = [];
   const dataStartRow = headerRowNum + 1;
-  const maxRowsToProcess = Math.min(1000, bestWorksheet.rowCount); // 최대 1000행까지만 처리
+  const maxRowsToProcess = bestWorksheet.rowCount; // 모든 행 처리하도록 변경
   
   console.log(`📋 데이터 읽기 시작: ${dataStartRow}행부터 ${maxRowsToProcess}행까지 (총 ${bestWorksheet.rowCount}행)`);
   
@@ -237,12 +250,18 @@ async function readExcelFile(filePath) {
       if (Object.values(rowData).some(value => value !== '')) {
         data.push(rowData);
         processedRows++;
+        
+        // 첫 5개 데이터 행에서 AA 컬럼 값 확인
+        if (processedRows <= 5 && headers.length >= 27) {
+          const aaColumnValue = rowData[headers[26]];
+          console.log(`🏠 행 ${rowNumber} AA 컬럼 데이터: "${aaColumnValue}"`);
+        }
       } else {
         skippedRows++;
       }
       
-      // 진행 상황 로그 (100행마다)
-      if (rowNumber % 100 === 0) {
+      // 진행 상황 로그 (500행마다)
+      if (rowNumber % 500 === 0) {
         console.log(`📊 진행 상황: ${rowNumber}/${maxRowsToProcess}행 처리됨`);
       }
       
@@ -257,6 +276,16 @@ async function readExcelFile(filePath) {
     skippedRows: skippedRows,
     totalDataRows: data.length,
     processingTime: new Date().toISOString()
+  });
+  
+  // 전체 헤더 목록 출력 (AA 컬럼 확인용)
+  console.log('📋 전체 헤더 목록:');
+  headers.forEach((header, index) => {
+    if (index === 26) { // AA 컬럼
+      console.log(`  [${index + 1}] (AA 컬럼): "${header}"`);
+    } else if (index < 30) { // 처음 30개만 출력
+      console.log(`  [${index + 1}]: "${header}"`);
+    }
   });
   
   return { headers, data };
