@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGOrder v1 - 발주서 자동 변환 시스템</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        .card {
+            background: linear-gradient(145deg, #f0f0f0 0%, #cacaca 100%);
+            border-radius: 20px;
+            padding: 60px 50px;
+            text-align: center;
+            box-shadow: 
+                20px 20px 60px #bebebe,
+                -20px -20px 60px #ffffff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, 
+                rgba(255,255,255,0.3) 0%, 
+                rgba(255,255,255,0.1) 50%, 
+                rgba(0,0,0,0.1) 100%);
+            pointer-events: none;
+        }
+
+        .logo {
+            font-size: 3.5rem;
+            font-weight: 300;
+            color: #333;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: -2px;
+        }
+
+        .version {
+            font-size: 1rem;
+            color: #666;
+            font-weight: 400;
+            margin-bottom: 40px;
+            opacity: 0.8;
+        }
+
+        .tagline {
+            font-size: 1.4rem;
+            color: #444;
+            margin-bottom: 50px;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+
+        .feature {
+            background: linear-gradient(145deg, #e6e6e6 0%, #cccccc 100%);
+            padding: 30px 20px;
+            border-radius: 15px;
+            box-shadow: 
+                inset 5px 5px 10px #c1c1c1,
+                inset -5px -5px 10px #ffffff;
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(145deg, #f0f0f0 0%, #d0d0d0 100%);
+            color: #333;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 
+                8px 8px 16px #bebebe,
+                -8px -8px 16px #ffffff;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                12px 12px 24px #bebebe,
+                -12px -12px 24px #ffffff;
+        }
+
+        .cta-button:active {
+            transform: translateY(0);
+            box-shadow: 
+                inset 4px 4px 8px #bebebe,
+                inset -4px -4px 8px #ffffff;
+        }
+
+        .tech-stack {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .tech-title {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tech-list {
+            font-size: 0.85rem;
+            color: #777;
+            line-height: 1.8;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .card {
+                padding: 40px 30px;
+            }
+            
+            .logo {
+                font-size: 2.5rem;
+            }
+            
+            .tagline {
+                font-size: 1.2rem;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1 class="logo">발주서 자동 변환</h1>
+            <div class="version">Version 1.0</div>
+            
+            <p class="tagline">
+                주문서를 표준 발주서로 자동 변환하는<br>
+                지능형 데이터 처리 시스템
+            </p>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-title">자동 변환</div>
+                    <div class="feature-desc">Excel, CSV 주문서를 표준 발주서 형식으로 자동 변환</div>
+                </div>
+                
+                <div class="feature">
+                    <div class="feature-title">필드 매핑</div>
+                    <div class="feature-desc">유연한 데이터 매핑 규칙으로 다양한 형식 지원</div>
+                </div>
+                
+                <div class="feature">
+                    <div class="feature-title">이메일 발송</div>
+                    <div class="feature-desc">생성된 발주서를 자동으로 이메일 첨부 발송</div>
+                </div>
+            </div>
+            
+            <a href="index.html" class="cta-button">시스템 시작하기</a>
+            
+            <div class="tech-stack">
+                <div class="tech-title">Technology Stack</div>
+                <div class="tech-list">
+                    Node.js • Express • ExcelJS • Nodemailer • Supabase Storage
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
